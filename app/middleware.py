@@ -12,10 +12,14 @@ async def require_api_key(request: Request):
 
     db = SessionLocal()
     try:
+        print(f"incoming key: {key_val[:10]}...")  # debug - remove later
         matched_key = verify_key(db, key_val)
         if matched_key is None:
             raise HTTPException(status_code=401, detail="key is invalid or has been revoked")
 
-        request.state.api_key = matched_key
+        # store just the values we need, not the ORM object
+        # if we store the object itself, session closes and we get DetachedInstanceError
+        request.state.api_key_id = matched_key.id
+        request.state.api_key_label = matched_key.label
     finally:
         db.close()

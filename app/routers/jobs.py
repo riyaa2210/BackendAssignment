@@ -17,13 +17,13 @@ async def submit_job(
     db: Session = Depends(get_db),
     _=Depends(require_api_key),
 ):
-    curr_key = request.state.api_key
+    curr_key_id = request.state.api_key_id
 
     # check rate limit before doing anything
-    if check_rate_limit(curr_key.id):
+    if check_rate_limit(curr_key_id):
         raise HTTPException(status_code=429, detail="too many requests, wait a bit")
 
-    j = job_service.make_job(db, curr_key.id, req.payload)
+    j = job_service.make_job(db, curr_key_id, req.payload)
     bg.add_task(job_service.process_job, j.id, req.payload)
 
     return j
