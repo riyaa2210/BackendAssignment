@@ -1,35 +1,37 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas import SubmitJobRequest, JobResponse
+from app.schemas import JobRequest, JobStatusResponse
 from app.services import job_service
 from app.middleware import require_api_key
-from app.rate_limiter import is_rate_limited
+from app.rate_limiter import check_rate_limit
 
-router = APIRouter(tags=["Jobs"])
+router = APIRouter(tags=["jobs"])
 
 
-@router.post("/submit-job", response_model=JobResponse)
+@router.post("/submit-job", response_model=JobStatusResponse)
 async def submit_job(
-    body: SubmitJobRequest,
-    background_tasks: BackgroundTasks,
+    req: JobRequest,
+    bg: BackgroundTasks,
     request: Request,
     db: Session = Depends(get_db),
     _=Depends(require_api_key),
 ):
-    api_key = request.state.api_key
+    curr_key = request.state.api_key
 
-    if is_rate_limited(api_key.id):
-        raise HTTPException(status_code=429, detail="rate limit exceeded, slow down")
+    # check rate limit before doing anything
+    if check_rate_limit(curr_key.id):
+        raise HTTPException(status_code=429, detail="too many requests, wait a bit")
 
-    job = job_service.create_job(db, api_key.id, body.payload)
-    background_tasks.add_task(job_service.run_job, job.id, body.payload)
-    return job
+    j = job_service.make_job(db, curr_key.id, req.payload)
+    bg.add_task(job_service.process_job, j.id, req.payload)
+
+    return j
 
 
-@router.get("/job/{job_id}", response_model=JobResponse)
-def get_job(job_id: str, db: Session = Depends(get_db)):
-    job = job_service.get_job(db, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="job not found")
-    return job
+@router.get("/job/{jid}", response_model=JobStatusResponse)
+def get_job_status(jid: str, db: Session = Depends(get_db)):
+    j = job_service.fetch_job(db, jid)
+    if not j:
+        raise HTTPException(status_code=404, detail="no job with that id")
+    return j

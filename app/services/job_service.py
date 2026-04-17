@@ -3,56 +3,59 @@ import uuid
 from sqlalchemy.orm import Session
 from app.models import Job
 from app.database import SessionLocal
+from sqlalchemy.sql import func
 
 
-def create_job(db: Session, api_key_id: str, payload: str) -> Job:
-    job = Job(
+def make_job(db: Session, key_id: str, payload: str):
+    j = Job(
         id=str(uuid.uuid4()),
         status="pending",
-        api_key_id=api_key_id,
+        owner_key_id=key_id,
     )
-    db.add(job)
+    db.add(j)
     db.commit()
-    db.refresh(job)
-    print(f"[job_service] job {job.id[:8]} created")
-    return job
+    db.refresh(j)
+    print(f"job queued: {j.id[:8]}")
+    return j
 
 
-def run_job(job_id: str, payload: str):
-    # background task — gets its own db session since FastAPI closes the request one
+def process_job(job_id: str, payload: str):
+    # need a fresh db session here, the request one is already closed
     db = SessionLocal()
+
     try:
-        job = db.query(Job).filter(Job.id == job_id).first()
-        if not job:
-            print(f"[job_service] job {job_id} not found, skipping")
+        j = db.query(Job).filter(Job.id == job_id).first()
+        if j is None:
+            print(f"couldnt find job {job_id}, skipping")
             return
 
-        job.status = "running"
+        j.status = "running"
         db.commit()
 
-        # simulate doing actual work
-        print(f"[job_service] processing job {job_id[:8]}...")
-        time.sleep(3)
+        print(f"working on job {job_id[:8]}...")
+        time.sleep(3)  # pretend we're doing something heavy
 
-        job.status = "done"
-        job.result = f"processed: {payload}"
+        j.status = "done"
+        j.result = f"finished processing: {payload}"
+        j.finished_at = func.now()
         db.commit()
-        print(f"[job_service] job {job_id[:8]} finished")
 
-    except Exception as e:
-        print(f"[job_service] job {job_id[:8]} failed: {e}")
-        # re-query because the job object might be detached after the exception
+        print(f"job {job_id[:8]} done")
+
+    except Exception as err:
+        print(f"job {job_id[:8]} crashed: {err}")
+        # re-fetch because the obj might be in a bad state after exception
         try:
-            failed_job = db.query(Job).filter(Job.id == job_id).first()
-            if failed_job:
-                failed_job.status = "failed"
-                failed_job.result = str(e)
+            j2 = db.query(Job).filter(Job.id == job_id).first()
+            if j2:
+                j2.status = "failed"
+                j2.result = f"error: {str(err)}"
                 db.commit()
-        except Exception as inner:
-            print(f"[job_service] couldn't update failed status: {inner}")
+        except:
+            print("couldnt even update the failed status, something is really wrong")
     finally:
         db.close()
 
 
-def get_job(db: Session, job_id: str):
+def fetch_job(db: Session, job_id: str):
     return db.query(Job).filter(Job.id == job_id).first()

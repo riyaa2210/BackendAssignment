@@ -3,26 +3,28 @@ from typing import Optional
 from datetime import datetime
 
 
-class CreateAPIKeyRequest(BaseModel):
+class NewKeyRequest(BaseModel):
     name: str
 
 
-class APIKeyResponse(BaseModel):
+# this is what we send back after creating a key
+# raw_key only shown once so user better save it lol
+class KeyCreatedResponse(BaseModel):
     id: str
     name: str
-    raw_key: str  # only returned once at creation
-    usage_count: int
+    raw_key: str
+    hit_count: int
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class SubmitJobRequest(BaseModel):
-    payload: Optional[str] = "default task"
+class JobRequest(BaseModel):
+    payload: Optional[str] = "some task"
 
 
-class JobResponse(BaseModel):
+class JobStatusResponse(BaseModel):
     id: str
     status: str
     result: Optional[str] = None

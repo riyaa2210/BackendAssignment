@@ -4,51 +4,51 @@ from sqlalchemy.orm import Session
 from app.models import APIKey
 
 
-def hash_key(raw_key: str) -> str:
-    # sha256 is good enough here, not storing passwords so bcrypt is overkill
-    return hashlib.sha256(raw_key.encode()).hexdigest()
+def make_hash(val: str) -> str:
+    return hashlib.sha256(val.encode()).hexdigest()
 
 
-def create_api_key(db: Session, name: str):
-    raw_key = str(uuid.uuid4()).replace("-", "")  # cleaner looking key
-    hashed = hash_key(raw_key)
+def generate_key(db: Session, name: str):
+    # strip dashes so it looks cleaner as an api key
+    raw = str(uuid.uuid4()).replace("-", "")
+    h = make_hash(raw)
 
-    key = APIKey(
-        name=name,
-        key_hash=hashed,
+    new_key = APIKey(
+        label=name,
+        hashed_key=h,
     )
-    db.add(key)
+    db.add(new_key)
     db.commit()
-    db.refresh(key)
+    db.refresh(new_key)
 
-    print(f"[key_service] created new key for '{name}' -> {raw_key[:8]}...")
-    return key, raw_key
+    print(f"new key created for '{name}', starts with: {raw[:8]}")
+    return new_key, raw
 
 
-def validate_api_key(db: Session, raw_key: str):
-    hashed = hash_key(raw_key)
-    key = db.query(APIKey).filter(
-        APIKey.key_hash == hashed,
-        APIKey.is_active == 1
+def verify_key(db: Session, raw: str):
+    h = make_hash(raw)
+
+    k = db.query(APIKey).filter(
+        APIKey.hashed_key == h,
+        APIKey.active == 1
     ).first()
 
-    if not key:
+    if k is None:
         return None
 
-    # bump usage count
-    key.usage_count += 1
+    k.hit_count += 1
     db.commit()
-    return key
+    return k
 
 
-def list_keys(db: Session):
+def get_all_keys(db: Session):
     return db.query(APIKey).all()
 
 
-def revoke_key(db: Session, key_id: str):
-    key = db.query(APIKey).filter(APIKey.id == key_id).first()
-    if not key:
+def disable_key(db: Session, kid: str):
+    k = db.query(APIKey).filter(APIKey.id == kid).first()
+    if not k:
         return None
-    key.is_active = 0
+    k.active = 0
     db.commit()
-    return key
+    return k

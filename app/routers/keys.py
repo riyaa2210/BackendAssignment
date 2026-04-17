@@ -1,43 +1,44 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas import CreateAPIKeyRequest, APIKeyResponse
+from app.schemas import NewKeyRequest, KeyCreatedResponse
 from app.services import key_service
 
-router = APIRouter(prefix="/keys", tags=["API Keys"])
+router = APIRouter(prefix="/keys", tags=["keys"])
 
 
-@router.post("/", response_model=APIKeyResponse)
-def create_key(body: CreateAPIKeyRequest, db: Session = Depends(get_db)):
-    key, raw_key = key_service.create_api_key(db, body.name)
+@router.post("/", response_model=KeyCreatedResponse)
+def create_key(body: NewKeyRequest, db: Session = Depends(get_db)):
+    k, raw = key_service.generate_key(db, body.name)
+
+    # manually building response so we can include raw key
     return {
-        "id": key.id,
-        "name": key.name,
-        "raw_key": raw_key,
-        "usage_count": key.usage_count,
-        "created_at": key.created_at,
+        "id": k.id,
+        "name": k.label,
+        "raw_key": raw,
+        "hit_count": k.hit_count,
+        "created_at": k.created_at,
     }
 
 
 @router.get("/")
-def list_keys(db: Session = Depends(get_db)):
-    keys = key_service.list_keys(db)
-    # not returning key_hash obviously
-    return [
-        {
+def list_all_keys(db: Session = Depends(get_db)):
+    all_keys = key_service.get_all_keys(db)
+    result = []
+    for k in all_keys:
+        result.append({
             "id": k.id,
-            "name": k.name,
-            "usage_count": k.usage_count,
-            "is_active": k.is_active,
+            "name": k.label,
+            "hit_count": k.hit_count,
+            "active": k.active,
             "created_at": k.created_at,
-        }
-        for k in keys
-    ]
+        })
+    return result
 
 
-@router.delete("/{key_id}")
-def revoke_key(key_id: str, db: Session = Depends(get_db)):
-    key = key_service.revoke_key(db, key_id)
-    if not key:
+@router.delete("/{kid}")
+def revoke_key(kid: str, db: Session = Depends(get_db)):
+    k = key_service.disable_key(db, kid)
+    if k is None:
         raise HTTPException(status_code=404, detail="key not found")
-    return {"message": "key revoked"}
+    return {"msg": "key disabled"}

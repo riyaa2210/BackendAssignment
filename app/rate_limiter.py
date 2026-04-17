@@ -1,29 +1,27 @@
 import time
 from collections import defaultdict
 
-# simple in-memory rate limiter
-# not production-ready but works fine for this scope
-# TODO: swap this out with Redis if we need multi-instance support
+# storing timestamps per key, check if too many in last 60s
+# not using redis here, just a dict - works fine for single server
 
-RATE_LIMIT = 10  # requests per minute
-WINDOW = 60  # seconds
+MAX_REQUESTS = 10
+TIME_WINDOW = 60  # seconds
 
-# structure: { api_key: [(timestamp, count), ...] }
-request_log: dict = defaultdict(list)
+# key_id -> list of timestamps
+_tracker: dict = defaultdict(list)
 
 
-def is_rate_limited(api_key: str) -> bool:
+def check_rate_limit(key_id: str) -> bool:
+    """returns True if the key has exceeded the limit"""
     now = time.time()
-    window_start = now - WINDOW
+    cutoff = now - TIME_WINDOW
 
-    # clean up old entries outside the window
-    request_log[api_key] = [
-        ts for ts in request_log[api_key] if ts > window_start
-    ]
+    # drop old timestamps
+    _tracker[key_id] = [t for t in _tracker[key_id] if t > cutoff]
 
-    if len(request_log[api_key]) >= RATE_LIMIT:
-        print(f"[rate limiter] key {api_key[:8]}... hit limit")
+    if len(_tracker[key_id]) >= MAX_REQUESTS:
+        print(f"rate limit hit for key: {key_id[:10]}")
         return True
 
-    request_log[api_key].append(now)
+    _tracker[key_id].append(now)
     return False

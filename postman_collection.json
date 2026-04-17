@@ -1,70 +1,52 @@
 {
   "info": {
-    "name": "BackendAssignment - API Key Manager",
-    "description": "Collection for testing the FastAPI backend — API key management, rate limiting, and background jobs.",
+    "name": "BackendAssignment",
+    "description": "API key manager + job queue",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:8000",
-      "type": "string"
+      "value": "http://localhost:8000"
     },
     {
       "key": "api_key",
       "value": "",
-      "type": "string",
-      "description": "Paste your raw_key here after creating one via POST /keys/"
+      "description": "paste raw_key here after creating one"
     },
     {
       "key": "key_id",
-      "value": "",
-      "type": "string",
-      "description": "ID of the API key (for revoke)"
+      "value": ""
     },
     {
       "key": "job_id",
-      "value": "",
-      "type": "string",
-      "description": "Job ID returned from POST /submit-job"
+      "value": ""
     }
   ],
   "item": [
     {
-      "name": "Health Check",
+      "name": "health check",
       "request": {
         "method": "GET",
-        "header": [],
         "url": {
           "raw": "{{base_url}}/",
           "host": ["{{base_url}}"],
           "path": [""]
-        },
-        "description": "Check if the server is running."
-      },
-      "response": [
-        {
-          "name": "200 OK",
-          "status": "OK",
-          "code": 200,
-          "body": "{\"message\": \"server is running\"}"
         }
-      ]
+      }
     },
     {
-      "name": "Create API Key",
+      "name": "create api key",
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "var json = pm.response.json();",
-              "if (json.raw_key) {",
-              "    pm.collectionVariables.set('api_key', json.raw_key);",
-              "    console.log('API key saved:', json.raw_key);",
-              "}",
-              "if (json.id) {",
-              "    pm.collectionVariables.set('key_id', json.id);",
+              "var res = pm.response.json();",
+              "if (res.raw_key) {",
+              "    pm.collectionVariables.set('api_key', res.raw_key);",
+              "    pm.collectionVariables.set('key_id', res.id);",
+              "    console.log('saved key:', res.raw_key);",
               "}"
             ],
             "type": "text/javascript"
@@ -73,64 +55,41 @@
       ],
       "request": {
         "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"my-test-app\"\n}"
+          "raw": "{\n  \"name\": \"test-app\"\n}"
         },
         "url": {
           "raw": "{{base_url}}/keys/",
           "host": ["{{base_url}}"],
           "path": ["keys", ""]
         },
-        "description": "Creates a new API key. The raw_key is only returned once — the test script auto-saves it to the collection variable."
-      },
-      "response": [
-        {
-          "name": "201 Created",
-          "status": "Created",
-          "code": 201,
-          "body": "{\n  \"id\": \"uuid-here\",\n  \"name\": \"my-test-app\",\n  \"raw_key\": \"abc123def456...\",\n  \"usage_count\": 0,\n  \"created_at\": \"2024-01-01T00:00:00\"\n}"
-        }
-      ]
+        "description": "raw_key is auto-saved to collection variable by the test script"
+      }
     },
     {
-      "name": "List API Keys",
+      "name": "list keys",
       "request": {
         "method": "GET",
-        "header": [],
         "url": {
           "raw": "{{base_url}}/keys/",
           "host": ["{{base_url}}"],
           "path": ["keys", ""]
-        },
-        "description": "Returns all API keys (without hashes). Shows usage count and active status."
-      },
-      "response": [
-        {
-          "name": "200 OK",
-          "status": "OK",
-          "code": 200,
-          "body": "[\n  {\n    \"id\": \"uuid-here\",\n    \"name\": \"my-test-app\",\n    \"usage_count\": 3,\n    \"is_active\": 1,\n    \"created_at\": \"2024-01-01T00:00:00\"\n  }\n]"
         }
-      ]
+      }
     },
     {
-      "name": "Submit Job (valid key)",
+      "name": "submit job (with key)",
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
-              "var json = pm.response.json();",
-              "if (json.id) {",
-              "    pm.collectionVariables.set('job_id', json.id);",
-              "    console.log('Job ID saved:', json.id);",
+              "var res = pm.response.json();",
+              "if (res.id) {",
+              "    pm.collectionVariables.set('job_id', res.id);",
+              "    console.log('job id:', res.id);",
               "}"
             ],
             "type": "text/javascript"
@@ -140,64 +99,25 @@
       "request": {
         "method": "POST",
         "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "X-API-Key",
-            "value": "{{api_key}}",
-            "description": "Your raw API key"
-          }
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-API-Key", "value": "{{api_key}}" }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"payload\": \"process this data\"\n}"
+          "raw": "{\n  \"payload\": \"process this thing\"\n}"
         },
         "url": {
           "raw": "{{base_url}}/submit-job",
           "host": ["{{base_url}}"],
           "path": ["submit-job"]
-        },
-        "description": "Submits a background job. Requires X-API-Key header. Rate limited to 10 req/min per key. Job ID is auto-saved for the status check request."
-      },
-      "response": [
-        {
-          "name": "200 OK - Job Created",
-          "status": "OK",
-          "code": 200,
-          "body": "{\n  \"id\": \"job-uuid\",\n  \"status\": \"pending\",\n  \"result\": null,\n  \"created_at\": \"2024-01-01T00:00:00\"\n}"
-        },
-        {
-          "name": "401 Unauthorized - Missing Key",
-          "status": "Unauthorized",
-          "code": 401,
-          "body": "{\"detail\": \"missing api key\"}"
-        },
-        {
-          "name": "401 Unauthorized - Invalid Key",
-          "status": "Unauthorized",
-          "code": 401,
-          "body": "{\"detail\": \"invalid or revoked api key\"}"
-        },
-        {
-          "name": "429 Too Many Requests",
-          "status": "Too Many Requests",
-          "code": 429,
-          "body": "{\"detail\": \"rate limit exceeded, slow down\"}"
         }
-      ]
+      }
     },
     {
-      "name": "Submit Job (no key - expect 401)",
+      "name": "submit job (no key - should 401)",
       "request": {
         "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"payload\": \"this should fail\"\n}"
@@ -206,70 +126,31 @@
           "raw": "{{base_url}}/submit-job",
           "host": ["{{base_url}}"],
           "path": ["submit-job"]
-        },
-        "description": "Intentionally missing the X-API-Key header. Should return 401."
-      },
-      "response": []
+        }
+      }
     },
     {
-      "name": "Get Job Status",
+      "name": "get job status",
       "request": {
         "method": "GET",
-        "header": [],
         "url": {
           "raw": "{{base_url}}/job/{{job_id}}",
           "host": ["{{base_url}}"],
           "path": ["job", "{{job_id}}"]
         },
-        "description": "Poll job status. Wait ~3 seconds after submitting for status to change to 'done'. Possible values: pending, running, done, failed."
-      },
-      "response": [
-        {
-          "name": "200 OK - Done",
-          "status": "OK",
-          "code": 200,
-          "body": "{\n  \"id\": \"job-uuid\",\n  \"status\": \"done\",\n  \"result\": \"processed: process this data\",\n  \"created_at\": \"2024-01-01T00:00:00\"\n}"
-        },
-        {
-          "name": "200 OK - Still Running",
-          "status": "OK",
-          "code": 200,
-          "body": "{\n  \"id\": \"job-uuid\",\n  \"status\": \"running\",\n  \"result\": null,\n  \"created_at\": \"2024-01-01T00:00:00\"\n}"
-        },
-        {
-          "name": "404 Not Found",
-          "status": "Not Found",
-          "code": 404,
-          "body": "{\"detail\": \"job not found\"}"
-        }
-      ]
+        "description": "wait ~3 seconds after submitting, then check this"
+      }
     },
     {
-      "name": "Revoke API Key",
+      "name": "revoke key",
       "request": {
         "method": "DELETE",
-        "header": [],
         "url": {
           "raw": "{{base_url}}/keys/{{key_id}}",
           "host": ["{{base_url}}"],
           "path": ["keys", "{{key_id}}"]
-        },
-        "description": "Revokes an API key by ID. Revoked keys return 401 on subsequent requests."
-      },
-      "response": [
-        {
-          "name": "200 OK",
-          "status": "OK",
-          "code": 200,
-          "body": "{\"message\": \"key revoked\"}"
-        },
-        {
-          "name": "404 Not Found",
-          "status": "Not Found",
-          "code": 404,
-          "body": "{\"detail\": \"key not found\"}"
         }
-      ]
+      }
     }
   ]
 }
