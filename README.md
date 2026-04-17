@@ -37,7 +37,15 @@ db file (`myapp.db`) gets created automatically on first run.
 swagger docs at: `http://localhost:8000/docs`
 
 ---
+## 📸 Screenshots
 
+### Swagger API Docs
+![Swagger](screenshots/swagger.png)
+
+---
+
+### Postman Testing
+![Postman](screenshots/postman.png)
 ## Endpoints
 
 ### POST /keys/
